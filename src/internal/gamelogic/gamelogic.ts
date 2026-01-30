@@ -1,5 +1,9 @@
 import readline from "readline";
 import { GameState } from "./gamestate.js";
+import { publishMsgPack } from "../pubsub/publish.js";
+import type { ConfirmChannel } from "amqplib";
+import { ExchangePerilTopic, GameLogSlug } from "../routing/routing.js";
+import type { GameLog } from "./logs.js";
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -84,10 +88,31 @@ export async function commandStatus(gs: GameState): Promise<void> {
 
   const p = gs.getPlayerSnap();
   console.log(
-    `You are ${p.username}, and you have ${Object.keys(p.units).length} units.`
+    `You are ${p.username}, and you have ${Object.keys(p.units).length} units.`,
   );
 
   for (const unit of Object.values(p.units)) {
     console.log(`* ${unit.id}: ${unit.location}, ${unit.rank}`);
+  }
+}
+
+export async function commandSpam(
+  gs: GameState,
+  words: string[],
+  ch: ConfirmChannel,
+) {
+  if (words.length < 2) {
+    throw new Error("usage: spam <amount>");
+  }
+
+  let amount = parseInt(words[1]!);
+  while (amount > 0) {
+    const log: GameLog = {
+      currentTime: new Date(),
+      message: getMaliciousLog(),
+      username: gs.getUsername(),
+    };
+    await publishMsgPack(ch, ExchangePerilTopic, `${GameLogSlug}.*`, log);
+    amount--;
   }
 }
